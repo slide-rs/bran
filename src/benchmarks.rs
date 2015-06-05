@@ -20,22 +20,22 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use test::Bencher;
-use coroutine::Coroutine;
+use fiber::Fiber;
 
 #[bench]
 fn bench_coroutine_spawning(b: &mut Bencher) {
     b.iter(|| {
-        let _ = Coroutine::spawn(move|| {});
+        let _ = Fiber::spawn(move|| {});
     });
 }
 
 #[bench]
 fn bench_context_switch(b: &mut Bencher) {
-    let coro = Coroutine::spawn(|| {
+    let coro = Fiber::spawn(|| {
         loop {
             // 3. Save current context
             // 4. Switch
-            Coroutine::sched();
+            Fiber::sched();
         }
     });
 

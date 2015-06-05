@@ -21,12 +21,12 @@
 
 use std::sync::mpsc::channel;
 
-use coroutine::Coroutine;
+use fiber::Fiber;
 
 #[test]
-fn test_coroutine_basic() {
+fn test_fiber_basic() {
     let (tx, rx) = channel();
-    Coroutine::spawn(move|| {
+    Fiber::spawn(move|| {
         tx.send(1).unwrap();
     }).resume().ok().expect("Failed to resume");
 
@@ -34,12 +34,12 @@ fn test_coroutine_basic() {
 }
 
 #[test]
-fn test_coroutine_yield() {
+fn test_fiber_yield() {
     let (tx, rx) = channel();
-    let coro = Coroutine::spawn(move|| {
+    let coro = Fiber::spawn(move|| {
         tx.send(1).unwrap();
 
-        Coroutine::sched();
+        Fiber::sched();
 
         tx.send(2).unwrap();
     });
@@ -53,12 +53,12 @@ fn test_coroutine_yield() {
 }
 
 #[test]
-fn test_coroutine_spawn_inside() {
+fn test_fiber_spawn_inside() {
     let (tx, rx) = channel();
-    Coroutine::spawn(move|| {
+    Fiber::spawn(move|| {
         tx.send(1).unwrap();
 
-        Coroutine::spawn(move|| {
+        Fiber::spawn(move|| {
             tx.send(2).unwrap();
         }).join().ok().expect("Failed to join");
 
@@ -69,25 +69,25 @@ fn test_coroutine_spawn_inside() {
 }
 
 #[test]
-fn test_coroutine_panic() {
-    let coro = Coroutine::spawn(move|| {
-        panic!("Panic inside a coroutine!!");
+fn test_fiber_panic() {
+    let coro = Fiber::spawn(move|| {
+        panic!("Panic inside a fiber!!");
     });
     assert!(coro.join().is_err());
 }
 
 #[test]
-fn test_coroutine_child_panic() {
-    Coroutine::spawn(move|| {
-        let _ = Coroutine::spawn(move|| {
-            panic!("Panic inside a coroutine's child!!");
+fn test_fiber_child_panic() {
+    Fiber::spawn(move|| {
+        let _ = Fiber::spawn(move|| {
+            panic!("Panic inside a fiber's child!!");
         }).join();
     }).join().ok().expect("Failed to join");
 }
 
 #[test]
-fn test_coroutine_resume_after_finished() {
-    let coro = Coroutine::spawn(move|| {});
+fn test_fiber_resume_after_finished() {
+    let coro = Fiber::spawn(move|| {});
 
     // It is already finished, but we try to resume it
     // Idealy it would come back immediately
@@ -98,16 +98,16 @@ fn test_coroutine_resume_after_finished() {
 }
 
 #[test]
-fn test_coroutine_resume_itself() {
-    let coro = Coroutine::spawn(move|| {
+fn test_fiber_resume_itself() {
+    let coro = Fiber::spawn(move|| {
         // Resume itself
-        Coroutine::current().resume().ok().expect("Failed to resume");
+        Fiber::current().resume().ok().expect("Failed to resume");
     });
 
     assert!(coro.resume().is_ok());
 }
 
 #[test]
-fn test_coroutine_yield_in_main() {
-    Coroutine::sched();
+fn test_fiber_yield_in_main() {
+    Fiber::sched();
 }

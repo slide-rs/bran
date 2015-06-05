@@ -19,12 +19,12 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use coroutine::{Coroutine, Handle, Options};
+use fiber::{Fiber, Handle, Options};
 
-/// Coroutine configuration. Provides detailed control over the properties and behavior of new Coroutines.
+/// Fiber configuration. Provides detailed control over the properties and behavior of new Fibers.
 ///
 /// ```ignore
-/// let coro = Builder::new().name(format!("Coroutine #{}", 1))
+/// let coro = Builder::new().name(format!("Fiber #{}", 1))
 ///                          .stack_size(4096)
 ///                          .spawn(|| println!("Hello world!!"));
 ///
@@ -35,30 +35,30 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Generate the base configuration for spawning a Coroutine, from which configuration methods can be chained.
+    /// Generate the base configuration for spawning a Fiber, from which configuration methods can be chained.
     pub fn new() -> Builder {
         Builder {
             opts: Default::default(),
         }
     }
 
-    /// Name the Coroutine-to-be. Currently the name is used for identification only in panic messages.
+    /// Name the Fiber-to-be. Currently the name is used for identification only in panic messages.
     pub fn name(mut self, name: String) -> Builder {
         self.opts.name = Some(name);
         self
     }
 
-    /// Set the size of the stack for the new Coroutine.
+    /// Set the size of the stack for the new Fiber.
     pub fn stack_size(mut self, size: usize) -> Builder {
         self.opts.stack_size = size;
         self
     }
 
-    /// Spawn a new Coroutine, and return a handle for it.
+    /// Spawn a new Fiber, and return a handle for it.
     pub fn spawn<F>(self, f: F) -> Handle
         where F: FnOnce() + Send + 'static
     {
-        Coroutine::spawn_opts(f, self.opts)
+        Fiber::spawn_opts(f, self.opts)
     }
 }
 

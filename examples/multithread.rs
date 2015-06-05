@@ -1,10 +1,10 @@
 #![feature(scoped)]
-extern crate coroutine;
+extern crate bran;
 extern crate num_cpus;
 
 use std::thread;
 
-use coroutine::{spawn, sched};
+use bran::{spawn, sched};
 
 fn main() {
 

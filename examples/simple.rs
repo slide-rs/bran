@@ -1,26 +1,26 @@
-extern crate coroutine;
+extern crate bran;
 
-use coroutine::Coroutine;
+use bran::Fiber;
 
 fn main() {
-    // Spawn a new coroutine
-    let coro = Coroutine::spawn(move|| {
+    // Spawn a new fiber
+    let coro = Fiber::spawn(move|| {
 
-        println!("1. Hello in coroutine!");
+        println!("1. Hello in fiber!");
 
         // Yield back to it's parent
-        Coroutine::sched();
+        Fiber::sched();
 
         println!("3. We are back!!");
 
-        // Spawn a new coroutine
-        Coroutine::spawn(move|| {
+        // Spawn a new fiber
+        Fiber::spawn(move|| {
             println!("4. Begin counting ...");
             for i in 0..5 {
                 println!("Counting {}", i);
 
                 // Yield to it's parent
-                Coroutine::sched();
+                Fiber::sched();
             }
             println!("5. Counting finished");
         }).join().ok().expect("Failed to join");
@@ -33,7 +33,7 @@ fn main() {
 
     println!("2. We are here!");
 
-    // Resume the coroutine
+    // Resume the fiber
     coro.resume().ok().expect("Failed to resume");
 
     println!("7. Back to main.");

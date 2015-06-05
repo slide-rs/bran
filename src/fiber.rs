@@ -19,10 +19,10 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! Basic single threaded Coroutine
+//! Basic single threaded Fiber
 //!
 //! ```rust
-//! use coroutine::{spawn, sched};
+//! use bran::{spawn, sched};
 //!
 //! let coro = spawn(|| {
 //!     println!("Before yield");
@@ -33,7 +33,7 @@
 //!     println!("I am back!");
 //! });
 //!
-//! // Starts the Coroutine
+//! // Starts the Fiber
 //! coro.resume().ok().expect("Failed to resume");
 //!
 //! println!("Back to main");
@@ -41,7 +41,7 @@
 //! // Resume it
 //! coro.resume().ok().expect("Failed to resume");
 //!
-//! println!("Coroutine finished");
+//! println!("Fiber finished");
 //! ```
 //!
 
@@ -50,12 +50,12 @@
  *                               --------------------------------
  * --------------------------    |                              |
  * |                        |    v                              |
- * |                  ----------------                          |  III.Coroutine::yield_now()
+ * |                  ----------------                          |  III.Fiber::yield_now()
  * |             ---> |   Scheduler  |  <-----                  |
  * |    parent   |    ----------------       |   parent         |
  * |             |           ^ parent        |                  |
  * |   --------------  --------------  --------------           |
- * |   |Coroutine(1)|  |Coroutine(2)|  |Coroutine(3)|  ----------
+ * |   |Fiber(1)    |  |Fiber(2)    |  |Fiber(3)    |  ----------
  * |   --------------  --------------  --------------
  * |         ^            |     ^
  * |         |            |     |  II.do_some_works
@@ -90,7 +90,7 @@ use std::boxed;
 use context::Context;
 use stack::{StackPool, Stack};
 
-/// State of a Coroutine
+/// State of a Fiber
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum State {
     /// Waiting its child to return
@@ -114,16 +114,16 @@ pub enum State {
 
 /// Return type of resuming.
 ///
-/// See `Coroutine::resume` for more detail
+/// See `Fiber::resume` for more detail
 pub type ResumeResult<T> = Result<T, Box<Any + Send>>;
 
-/// Coroutine spawn options
+/// Fiber spawn options
 #[derive(Debug)]
 pub struct Options {
     /// The size of the stack
     pub stack_size: usize,
 
-    /// The name of the Coroutine
+    /// The name of the Fiber
     pub name: Option<String>,
 }
 
@@ -136,8 +136,8 @@ impl Default for Options {
     }
 }
 
-/// Handle of a Coroutine
-pub struct Handle(Unique<Coroutine>);
+/// Handle of a Fiber
+pub struct Handle(Unique<Fiber>);
 
 impl Debug for Handle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -159,33 +159,33 @@ impl Drop for Handle {
 }
 
 impl Handle {
-    fn new(c: Coroutine) -> Handle {
+    fn new(c: Fiber) -> Handle {
         unsafe {
             Handle(Unique::new(boxed::into_raw(Box::new(c))))
         }
     }
 
-    unsafe fn get_inner_mut(&self) -> &mut Coroutine {
+    unsafe fn get_inner_mut(&self) -> &mut Fiber {
         &mut **self.0
     }
 
-    unsafe fn get_inner(&self) -> &Coroutine {
+    unsafe fn get_inner(&self) -> &Fiber {
         & *self.0.get()
     }
 
-    /// Resume the Coroutine
+    /// Resume the Fiber
     pub fn resume(&self) -> ResumeResult<()> {
         match self.state() {
             State::Finished | State::Running => return Ok(()),
             State::Panicked => panic!("Trying to resume a panicked coroutine"),
-            State::Normal => panic!("Coroutine {:?} is waiting for its child to return, cannot resume!",
+            State::Normal => panic!("Fiber {:?} is waiting for its child to return, cannot resume!",
                                     self.name().unwrap_or("<unnamed>")),
             _ => {}
         }
 
         let env = Environment::current();
 
-        let from_coro_hdl = Coroutine::current();
+        let from_coro_hdl = Fiber::current();
         {
             let (from_coro, to_coro) = unsafe {
                 (from_coro_hdl.get_inner_mut(), self.get_inner_mut())
@@ -207,12 +207,12 @@ impl Handle {
         }
     }
 
-    /// Join this Coroutine.
+    /// Join this Fiber.
     ///
-    /// If the Coroutine panicked, this method will return an `Err` with panic message.
+    /// If the Fiber panicked, this method will return an `Err` with panic message.
     ///
     /// ```ignore
-    /// // Wait until the Coroutine exits
+    /// // Wait until the Fiber exits
     /// spawn(|| {
     ///     println!("Before yield");
     ///     sched();
@@ -230,7 +230,7 @@ impl Handle {
         Ok(())
     }
 
-    /// Get the state of the Coroutine
+    /// Get the state of the Fiber
     #[inline]
     pub fn state(&self) -> State {
         unsafe {
@@ -238,7 +238,7 @@ impl Handle {
         }
     }
 
-    /// Set the state of the Coroutine
+    /// Set the state of the Fiber
     #[inline]
     fn set_state(&self, state: State) {
         unsafe { self.get_inner_mut().set_state(state) }
@@ -246,10 +246,10 @@ impl Handle {
 }
 
 impl Deref for Handle {
-    type Target = Coroutine;
+    type Target = Fiber;
 
     #[inline]
-    fn deref(&self) -> &Coroutine {
+    fn deref(&self) -> &Fiber {
         unsafe { self.get_inner() }
     }
 }
@@ -257,7 +257,7 @@ impl Deref for Handle {
 /// A coroutine is nothing more than a (register context, stack) pair.
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]
-pub struct Coroutine {
+pub struct Fiber {
     /// The segment of stack on which the task is currently running or
     /// if the task is blocked, on which the task will resume
     /// execution.
@@ -273,10 +273,10 @@ pub struct Coroutine {
     name: Option<String>,
 }
 
-unsafe impl Send for Coroutine {}
+unsafe impl Send for Fiber {}
 
 /// Destroy coroutine and try to reuse std::stack segment.
-impl Drop for Coroutine {
+impl Drop for Fiber {
     fn drop(&mut self) {
         match self.current_stack_segment.take() {
             Some(stack) => {
@@ -296,7 +296,7 @@ extern "C" fn coroutine_initialize(_: usize, f: *mut ()) -> ! {
 
     let env = Environment::current();
 
-    let cur: &mut Coroutine = unsafe {
+    let cur: &mut Fiber = unsafe {
         let last = & **env.coroutine_stack.last().expect("Impossible happened! No current coroutine!");
         last.get_inner_mut()
     };
@@ -321,7 +321,7 @@ extern "C" fn coroutine_initialize(_: usize, f: *mut ()) -> ! {
 
                 let name = cur.name().unwrap_or("<unnamed>");
 
-                let _ = writeln!(&mut stderr(), "Coroutine '{}' panicked at '{}'", name, msg);
+                let _ = writeln!(&mut stderr(), "Fiber '{}' panicked at '{}'", name, msg);
             }
 
             env.running_state = Some(err);
@@ -331,13 +331,13 @@ extern "C" fn coroutine_initialize(_: usize, f: *mut ()) -> ! {
     };
 
     loop {
-        Coroutine::yield_now(state);
+        Fiber::yield_now(state);
     }
 }
 
-impl Coroutine {
+impl Fiber {
     unsafe fn empty(name: Option<String>, state: State) -> Handle {
-        Handle::new(Coroutine {
+        Handle::new(Fiber {
             current_stack_segment: None,
             saved_context: Context::empty(),
             state: state,
@@ -346,7 +346,7 @@ impl Coroutine {
     }
 
     fn new(name: Option<String>, stack: Stack, ctx: Context, state: State) -> Handle {
-        Handle::new(Coroutine {
+        Handle::new(Fiber {
             current_stack_segment: Some(stack),
             saved_context: ctx,
             state: state,
@@ -354,7 +354,7 @@ impl Coroutine {
         })
     }
 
-    /// Spawn a Coroutine with options
+    /// Spawn a Fiber with options
     pub fn spawn_opts<F>(f: F, opts: Options) -> Handle
         where F: FnOnce() + Send + 'static
     {
@@ -364,17 +364,17 @@ impl Coroutine {
 
         let ctx = Context::new(coroutine_initialize, 0, f, &mut stack);
 
-        Coroutine::new(opts.name, stack, ctx, State::Suspended)
+        Fiber::new(opts.name, stack, ctx, State::Suspended)
     }
 
-    /// Spawn a Coroutine with default options
+    /// Spawn a Fiber with default options
     pub fn spawn<F>(f: F) -> Handle
         where F: FnOnce() + Send + 'static
     {
-        Coroutine::spawn_opts(f, Default::default())
+        Fiber::spawn_opts(f, Default::default())
     }
 
-    /// Yield the current running Coroutine to its parent
+    /// Yield the current running Fiber to its parent
     #[inline]
     pub fn yield_now(state: State) {
         // Cannot yield with Running state
@@ -397,21 +397,21 @@ impl Coroutine {
         }
     }
 
-    /// Yield the current running Coroutine with `Suspended` state
+    /// Yield the current running Fiber with `Suspended` state
     #[inline]
     pub fn sched() {
-        Coroutine::yield_now(State::Suspended)
+        Fiber::yield_now(State::Suspended)
     }
 
-    /// Yield the current running Coroutine with `Blocked` state
+    /// Yield the current running Fiber with `Blocked` state
     #[inline]
     pub fn block() {
-        Coroutine::yield_now(State::Blocked)
+        Fiber::yield_now(State::Blocked)
     }
 
-    /// Get a Handle to the current running Coroutine.
+    /// Get a Handle to the current running Fiber.
     ///
-    /// It is unsafe because it is an undefined behavior if you resume a Coroutine
+    /// It is unsafe because it is an undefined behavior if you resume a Fiber
     /// in more than one native thread.
     #[inline]
     pub fn current() -> &'static Handle {
@@ -429,19 +429,19 @@ impl Coroutine {
         self.state = state
     }
 
-    /// Get the name of the Coroutine
+    /// Get the name of the Fiber
     #[inline(always)]
     pub fn name(&self) -> Option<&str> {
         self.name.as_ref().map(|s| &**s)
     }
 
-    /// Determines whether the current Coroutine is unwinding because of panic.
+    /// Determines whether the current Fiber is unwinding because of panic.
     #[inline(always)]
     pub fn panicking(&self) -> bool {
         self.state() == State::Panicked
     }
 
-    /// Determines whether the Coroutine is finished
+    /// Determines whether the Fiber is finished
     #[inline(always)]
     pub fn finished(&self) -> bool {
         self.state() == State::Finished
@@ -450,7 +450,7 @@ impl Coroutine {
 
 thread_local!(static COROUTINE_ENVIRONMENT: UnsafeCell<Box<Environment>> = UnsafeCell::new(Environment::new()));
 
-/// Coroutine managing environment
+/// Fiber managing environment
 #[allow(raw_pointer_derive)]
 struct Environment {
     stack_pool: StackPool,
@@ -465,7 +465,7 @@ impl Environment {
     /// Initialize a new environment
     fn new() -> Box<Environment> {
         let coro = unsafe {
-            let coro = Coroutine::empty(Some("<Environment Root Coroutine>".to_string()), State::Running);
+            let coro = Fiber::empty(Some("<Environment Root Fiber>".to_string()), State::Running);
             coro
         };
 

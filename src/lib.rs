@@ -21,15 +21,12 @@
 extern crate libc;
 extern crate test;
 extern crate mmap;
-extern crate spin;
-
-pub use coroutine_unique as coroutine;
 
 pub use builder::Builder;
-pub use coroutine::{Coroutine, Handle, ResumeResult};
+pub use fiber::{Fiber, Handle, ResumeResult};
 
 mod context;
-pub mod coroutine_unique;
+pub mod fiber;
 
 pub mod builder;
 mod stack;
@@ -41,32 +38,32 @@ mod tests;
 #[cfg(test)]
 mod benchmarks;
 
-/// Spawn a new Coroutine
+/// Spawn a new Fiber
 ///
-/// Equavalent to `Coroutine::spawn`.
+/// Equavalent to `Fiber::spawn`.
 pub fn spawn<F>(f: F) -> Handle
     where F: FnOnce() + Send + 'static
 {
     Builder::new().spawn(f)
 }
 
-/// Get the current Coroutine
+/// Get the current Fiber
 ///
-/// Equavalent to `Coroutine::current`.
+/// Equavalent to `Fiber::current`.
 pub fn current() -> &'static Handle {
-    Coroutine::current()
+    Fiber::current()
 }
 
-/// Resume a Coroutine
+/// Resume a Fiber
 ///
-/// Equavalent to `Coroutine::resume`.
+/// Equavalent to `Fiber::resume`.
 pub fn resume(coro: &Handle) -> ResumeResult<()> {
     coro.resume()
 }
 
-/// Yield the current Coroutine
+/// Yield the current Fiber
 ///
-/// Equavalent to `Coroutine::sched`.
+/// Equavalent to `Fiber::sched`.
 pub fn sched() {
-    Coroutine::sched()
+    Fiber::sched()
 }
