@@ -21,22 +21,14 @@
 extern crate libc;
 extern crate test;
 extern crate mmap;
-#[cfg(feature = "enable-clonable-handle")]
 extern crate spin;
 
-#[cfg(feature = "enable-clonable-handle")]
-pub use coroutine_clonable as coroutine;
-
-#[cfg(not(feature = "enable-clonable-handle"))]
 pub use coroutine_unique as coroutine;
 
 pub use builder::Builder;
 pub use coroutine::{Coroutine, Handle, ResumeResult};
 
 mod context;
-#[cfg(feature = "enable-clonable-handle")]
-pub mod coroutine_clonable;
-#[cfg(not(feature = "enable-clonable-handle"))]
 pub mod coroutine_unique;
 
 pub mod builder;
