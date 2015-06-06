@@ -11,6 +11,7 @@
 use std::ptr;
 use std::env::{page_size};
 use std::fmt;
+use std::sync::{Mutex, Arc};
 
 use libc;
 
@@ -20,6 +21,7 @@ use mmap::{MemoryMap, MapOption};
 pub struct Stack {
     buf: Option<MemoryMap>,
     min_size: usize,
+    pool: Option<StackPool>
 }
 
 impl fmt::Debug for Stack {
@@ -75,6 +77,7 @@ impl Stack {
         Stack {
             buf: Some(stack),
             min_size: size,
+            pool: None
         }
     }
 
@@ -84,6 +87,7 @@ impl Stack {
         Stack {
             buf: None,
             min_size: 0,
+            pool: None
         }
     }
 
@@ -110,6 +114,22 @@ impl Stack {
     }
 }
 
+impl Drop for Stack {
+    fn drop(&mut self) {
+        match (self.buf.take(), self.pool.clone().take()) {
+            (Some(s), Some(p)) => p.give_stack(Stack {
+                buf: Some(s),
+                min_size: self.min_size,
+                pool: self.pool.take()
+            }),
+            _ => ()
+        }
+    }
+}
+
+unsafe impl Send for Stack {}
+
+
 #[cfg(unix)]
 fn protect_last_page(stack: &MemoryMap) -> bool {
     unsafe {
@@ -131,5 +151,46 @@ fn protect_last_page(stack: &MemoryMap) -> bool {
         libc::VirtualProtect(last_page, page_size() as libc::SIZE_T,
                              libc::PAGE_NOACCESS,
                              &mut old_prot as libc::LPDWORD) != 0
+    }
+}
+
+#[derive(Debug)]
+struct InnerPool {
+    // Ideally this would be some data structure that preserved ordering on
+    // Stack.min_size.
+    stacks: Vec<Stack>,    
+}
+
+#[derive(Debug, Clone)]
+pub struct StackPool(Arc<Mutex<InnerPool>>);
+
+impl StackPool {
+    pub fn new() -> StackPool {
+        StackPool(Arc::new(Mutex::new(InnerPool{
+            stacks: vec![],
+        })))
+    }
+
+    pub fn take_stack(self, min_size: usize) -> Stack {
+        let mut stack = {
+            let mut pool = self.0.lock().unwrap();
+
+            // Ideally this would be a binary search
+            pool.stacks.iter()
+                .position(|s| min_size <= s.min_size)
+                .map(|idx| pool.stacks.swap_remove(idx))
+        }.unwrap_or_else(|| Stack::new(min_size));
+
+        stack.pool = Some(self);
+        stack
+    }
+
+    pub fn give_stack(&self, mut stack: Stack) {
+        let mut pool = self.0.lock().unwrap();
+        stack.pool = None;
+
+        if pool.stacks.len() < 256 {
+            pool.stacks.push(stack);
+        }
     }
 }

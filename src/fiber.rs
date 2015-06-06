@@ -255,12 +255,16 @@ extern "C" fn coroutine_initialize(_: usize, f: *mut ()) -> ! {
 }
 
 impl Fiber {
-    fn new(name: Option<String>, stack: Stack, ctx: Context, state: State) -> Handle {
+    fn new(name: Option<String>,
+           stack: Stack,
+           ctx: Context,
+           state: State) -> Handle {
+
         Handle::new(Fiber {
             current_stack_segment: Some(stack),
             saved_context: ctx,
             state: state,
-            name: name,
+            name: name
         })
     }
 
@@ -278,7 +282,7 @@ impl Fiber {
     pub fn spawn_opts<F>(f: F, opts: Options) -> Handle
         where F: FnOnce() + Send + 'static
     {
-        let mut stack = Stack::new(2*1024*1024);
+        let mut stack = Stack::new(1024*1024);
         let ctx = Context::new(coroutine_initialize, 0, f, &mut stack);
         Fiber::new(opts.name, stack, ctx, State::Pending(Signal::pulsed()))
     }
@@ -288,6 +292,15 @@ impl Fiber {
         where F: FnOnce() + Send + 'static
     {
         Fiber::spawn_opts(f, Default::default())
+    }
+
+    /// Spawn a Fiber with options
+    pub fn spawn_with<F>(f: F, pool: super::StackPool) -> Handle
+        where F: FnOnce() + Send + 'static
+    {
+        let mut stack = pool.take_stack(1024*1024);
+        let ctx = Context::new(coroutine_initialize, 0, f, &mut stack);
+        Fiber::new(None, stack, ctx, State::Pending(Signal::pulsed()))
     }
 
     #[inline(always)]

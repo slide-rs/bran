@@ -25,6 +25,7 @@ extern crate pulse;
 
 pub use builder::Builder;
 pub use fiber::{Fiber, Handle, ResumeResult};
+pub use stack::StackPool;
 
 mod context;
 pub mod fiber;
