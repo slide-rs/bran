@@ -61,19 +61,3 @@ impl Builder {
         Fiber::spawn_opts(f, self.opts)
     }
 }
-
-#[cfg(test)]
-mod test {
-    use std::sync::mpsc::channel;
-
-    use super::Builder;
-
-    #[test]
-    fn test_builder_basic() {
-        let (tx, rx) = channel();
-        Builder::new().name("Test builder".to_string()).spawn(move|| {
-            tx.send(1).unwrap();
-        }).join().ok().expect("Failed to join");
-        assert_eq!(rx.recv().unwrap(), 1);
-    }
-}

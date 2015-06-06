@@ -22,92 +22,56 @@
 use std::sync::mpsc::channel;
 
 use fiber::Fiber;
+use pulse::Signal;
 
 #[test]
 fn test_fiber_basic() {
     let (tx, rx) = channel();
     Fiber::spawn(move|| {
         tx.send(1).unwrap();
-    }).resume().ok().expect("Failed to resume");
+    }).run();
 
     assert_eq!(rx.recv().unwrap(), 1);
 }
 
 #[test]
 fn test_fiber_yield() {
-    let (tx, rx) = channel();
-    let coro = Fiber::spawn(move|| {
-        tx.send(1).unwrap();
+    let (s0, p0) = Signal::new();
+    let (s1, p1) = Signal::new();
+    let (s2, p2) = Signal::new();
 
-        Fiber::sched();
-
-        tx.send(2).unwrap();
+    let fiber = Fiber::spawn(move|| {
+        p0.pulse();
+        s1.wait().unwrap();
+        p2.pulse();
     });
-    coro.resume().ok().expect("Failed to resume");
-    assert_eq!(rx.recv().unwrap(), 1);
-    assert!(rx.try_recv().is_err());
+    assert!(s0.is_pending());
+    assert!(fiber.run().is_pending());
+    assert!(!s0.is_pending());
+    p1.pulse();
 
-    coro.resume().ok().expect("Failed to resume");
-
-    assert_eq!(rx.recv().unwrap(), 2);
-}
-
-#[test]
-fn test_fiber_spawn_inside() {
-    let (tx, rx) = channel();
-    Fiber::spawn(move|| {
-        tx.send(1).unwrap();
-
-        Fiber::spawn(move|| {
-            tx.send(2).unwrap();
-        }).join().ok().expect("Failed to join");
-
-    }).join().ok().expect("Failed to join");
-
-    assert_eq!(rx.recv().unwrap(), 1);
-    assert_eq!(rx.recv().unwrap(), 2);
+    assert!(s2.is_pending());
+    assert!(fiber.run().is_finished());
+    assert!(!s2.is_pending());
 }
 
 #[test]
 fn test_fiber_panic() {
-    let coro = Fiber::spawn(move|| {
+    let fiber = Fiber::spawn(move|| {
         panic!("Panic inside a fiber!!");
     });
-    assert!(coro.join().is_err());
+    assert!(fiber.run().is_panic());
 }
 
 #[test]
-fn test_fiber_child_panic() {
-    Fiber::spawn(move|| {
-        let _ = Fiber::spawn(move|| {
-            panic!("Panic inside a fiber's child!!");
-        }).join();
-    }).join().ok().expect("Failed to join");
-}
+fn test_fiber_run_after_finished() {
+    let fiber = Fiber::spawn(move|| {});
 
-#[test]
-fn test_fiber_resume_after_finished() {
-    let coro = Fiber::spawn(move|| {});
-
-    // It is already finished, but we try to resume it
+    // It is already finished, but we try to run it
     // Idealy it would come back immediately
-    assert!(coro.resume().is_ok());
+    assert!(fiber.run().is_finished());
 
     // Again?
-    assert!(coro.resume().is_ok());
+    assert!(fiber.run().is_finished());
 }
 
-#[test]
-fn test_fiber_resume_itself() {
-    let coro = Fiber::spawn(move|| {
-        // Resume itself
-        Fiber::current().resume().ok().expect("Failed to resume");
-    });
-
-    assert!(coro.resume().is_ok());
-}
-
-#[test]
-fn test_fiber_yield_in_main() {
-    Fiber::sched();
-}

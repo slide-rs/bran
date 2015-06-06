@@ -21,6 +21,7 @@
 extern crate libc;
 extern crate test;
 extern crate mmap;
+extern crate pulse;
 
 pub use builder::Builder;
 pub use fiber::{Fiber, Handle, ResumeResult};
@@ -35,8 +36,6 @@ mod sys;
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod benchmarks;
 
 /// Spawn a new Fiber
 ///
@@ -45,25 +44,4 @@ pub fn spawn<F>(f: F) -> Handle
     where F: FnOnce() + Send + 'static
 {
     Builder::new().spawn(f)
-}
-
-/// Get the current Fiber
-///
-/// Equavalent to `Fiber::current`.
-pub fn current() -> &'static Handle {
-    Fiber::current()
-}
-
-/// Resume a Fiber
-///
-/// Equavalent to `Fiber::resume`.
-pub fn resume(coro: &Handle) -> ResumeResult<()> {
-    coro.resume()
-}
-
-/// Yield the current Fiber
-///
-/// Equavalent to `Fiber::sched`.
-pub fn sched() {
-    Fiber::sched()
 }

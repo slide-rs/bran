@@ -24,6 +24,7 @@ path = "src/lib.rs"
 
 [dependencies]
 mmap = "*"
+pulse = "*"
 
 [dev-dependencies]
 num_cpus = "*"
