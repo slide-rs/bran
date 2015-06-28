@@ -15,7 +15,8 @@
 #![allow(unused_features)]
 #![feature(std_misc, libc, asm, core, alloc, test, unboxed_closures, page_size)]
 #![feature(rustc_private)]
-#![feature(unique)]
+#![feature(unique, box_raw)]
+#![feature(core_simd, rt)]
 
 #[macro_use] extern crate log;
 extern crate libc;

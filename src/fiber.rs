@@ -59,7 +59,6 @@ use std::cell::UnsafeCell;
 use std::ops::Deref;
 use std::ptr::{self, Unique};
 use std::fmt::{self, Debug};
-use std::boxed;
 
 use pulse::{self, Signal};
 
@@ -155,7 +154,7 @@ impl Drop for Handle {
 impl Handle {
     fn new(c: Fiber) -> Handle {
         unsafe {
-            Handle(Unique::new(boxed::into_raw(Box::new(c))))
+            Handle(Unique::new(Box::into_raw(Box::new(c))))
         }
     }
 
